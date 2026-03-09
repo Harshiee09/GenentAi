@@ -17,7 +17,6 @@ import {
   Check,
   Download,
   ChevronLeft,
-  Loader2,
 } from "lucide-react";
 import { GenentLogo } from "./GenentLogo";
 
@@ -61,7 +60,6 @@ interface CopyState {
   [key: string]: boolean;
 }
 
-// Normalise Llama output which may use different key names than expected
 function normaliseContent(platform: Platform, raw: any): any {
   let c = raw;
   if (c && typeof c === "object") {
@@ -69,20 +67,14 @@ function normaliseContent(platform: Platform, raw: any): any {
     else if (platform === "linkedin" && c.linkedin) c = c.linkedin;
     else if (platform === "twitter" && c.twitter) c = c.twitter;
   }
-
   if (platform === "instagram") {
     const rawSlides = c.slides || c.carousel || c.content || [];
     const slides = rawSlides.map((s: any, i: number) => ({
       title: s.title || s.slide_title || `Slide ${i + 1}`,
       text: s.text || s.content || s.body || s.slide_content || s.caption || "",
     }));
-    return {
-      slides,
-      caption: c.caption || c.post_caption || "",
-      hashtags: c.hashtags || c.tags || [],
-    };
+    return { slides, caption: c.caption || c.post_caption || "", hashtags: c.hashtags || c.tags || [] };
   }
-
   if (platform === "linkedin") {
     const body = c.body || c.paragraphs || c.content || [];
     return {
@@ -91,12 +83,10 @@ function normaliseContent(platform: Platform, raw: any): any {
       cta: c.cta || c.call_to_action || c.closing || "",
     };
   }
-
   if (platform === "twitter") {
     const tweets = c.tweets || c.thread || c.content || c.posts || (Array.isArray(c) ? c : []);
     return { tweets: Array.isArray(tweets) ? tweets : [] };
   }
-
   return c;
 }
 
@@ -109,7 +99,6 @@ export default function GenentChat() {
   const [activePlatform, setActivePlatform] = useState<Platform>("instagram");
   const [sessionId] = useState(() => crypto.randomUUID());
   const [isMock, setIsMock] = useState(false);
-  const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null);
   const [copyStates, setCopyStates] = useState<CopyState>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -150,29 +139,6 @@ export default function GenentChat() {
     } catch (err: any) {
       setError(err.message || "Something went wrong. Try again.");
       setScreen("input");
-    }
-  };
-
-  const handleFeedback = async (action: string) => {
-    const currentDraft = drafts.find((d) => d.platform === activePlatform);
-    if (!currentDraft) return;
-    setFeedbackLoading(action);
-    try {
-      const res = await fetch(`${API_BASE}/api/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft_id: currentDraft.draft_id, action }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error("Feedback failed");
-      const normalisedContent = normaliseContent(activePlatform, data.revised_draft.content);
-      setDrafts((prev) =>
-        prev.map((d) => d.platform === activePlatform ? { ...d, ...data.revised_draft, content: normalisedContent } : d)
-      );
-    } catch {
-      // keep current draft
-    } finally {
-      setFeedbackLoading(null);
     }
   };
 
@@ -305,6 +271,7 @@ export default function GenentChat() {
     return (
       <div className="relative w-full min-h-screen bg-cover bg-center flex flex-col"
         style={{ backgroundImage: "url('https://pub-940ccf6255b54fa799a9b01050e6c227.r2.dev/ruixen_moon_2.png')", backgroundAttachment: "fixed" }}>
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 bg-black/40 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -316,6 +283,11 @@ export default function GenentChat() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-neutral-400 max-w-xs truncate">"{message}"</span>
+            <Button onClick={() => handleCopy(JSON.stringify(content, null, 2), "full-draft")}
+              variant="ghost" size="sm" className="text-neutral-300 hover:text-white gap-1">
+              {copyStates["full-draft"] ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              Copy
+            </Button>
             <Button onClick={handleExport} variant="ghost" size="sm" className="text-neutral-300 hover:text-white gap-1">
               <Download className="w-4 h-4" /> Export
             </Button>
@@ -337,34 +309,9 @@ export default function GenentChat() {
           ))}
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col lg:flex-row gap-0">
-          <div className="flex-1 p-6 overflow-y-auto">{renderDraftContent()}</div>
-          <div className="w-full lg:w-64 p-4 border-t lg:border-t-0 lg:border-l border-neutral-800 bg-black/30 backdrop-blur-sm">
-            <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wider mb-3">Refine Draft</p>
-            <div className="flex flex-col gap-2">
-              {[
-                { action: "friendlier", label: "😊 Make Friendlier" },
-                { action: "shorter", label: "✂️ Shorten" },
-                { action: "add_cta", label: "📣 Add CTA" },
-                { action: "more_professional", label: "💼 More Professional" },
-                { action: "punchier", label: "⚡ Make Punchier" },
-              ].map(({ action, label }) => (
-                <Button key={action} onClick={() => handleFeedback(action)} disabled={feedbackLoading !== null}
-                  variant="outline" className="justify-start text-sm border-neutral-700 bg-black/40 text-neutral-300 hover:text-white hover:bg-neutral-800">
-                  {feedbackLoading === action ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : null}
-                  {label}
-                </Button>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-neutral-800">
-              <Button onClick={() => handleCopy(JSON.stringify(content, null, 2), "full-draft")}
-                variant="outline" className="w-full justify-start text-sm border-neutral-700 bg-black/40 text-neutral-300 hover:text-white">
-                {copyStates["full-draft"] ? <Check className="w-4 h-4 mr-2 text-green-400" /> : <Copy className="w-4 h-4 mr-2" />}
-                Copy Full Draft
-              </Button>
-            </div>
-          </div>
+        {/* Main Content — full width, no sidebar */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {renderDraftContent()}
         </div>
       </div>
     );
