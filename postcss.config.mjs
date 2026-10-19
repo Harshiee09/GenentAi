@@ -8,7 +8,7 @@
  * For example:
  *
  * import postcssNested from 'postcss-nested'
- * export default { plugins: [postcssNested()] }
+ * export default { plugins: [postcssNested()]}
  *
  * Otherwise, you can leave this file empty.
  */
